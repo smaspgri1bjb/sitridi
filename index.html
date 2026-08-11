@@ -331,20 +331,40 @@
       <!-- Admin Main Portal (Unlocked) -->
       <div id="admin-main-portal" style="display: none;">
         
-        <!-- GAS Web App URL Config Card -->
-        <div class="form-card" style="max-width: 100%; margin-bottom: 1.5rem;">
-          <div class="form-header">
-            <h3 class="form-title">⚙️ Konfigurasi Apps Script API Endpoint</h3>
-            <p class="form-subtitle">Hubungkan frontend dengan Google Apps Script backend Web App URL.</p>
-          </div>
-          <div class="form-row">
-            <div class="form-group" style="flex: 1;">
+        <!-- GAS Web App URL Config & Change PIN Card Grid -->
+        <div class="form-row" style="margin-bottom: 1.5rem;">
+          <!-- GAS Config -->
+          <div class="form-card" style="max-width: 100%; margin-bottom: 0; flex: 2;">
+            <div class="form-header">
+              <h3 class="form-title">⚙️ Konfigurasi Apps Script API Endpoint</h3>
+              <p class="form-subtitle">Hubungkan frontend dengan Google Apps Script Web App URL.</p>
+            </div>
+            <div class="form-group">
               <input type="text" id="gas-url-input" class="form-control" placeholder="https://script.google.com/macros/s/.../exec">
             </div>
-            <div>
+            <div style="display: flex; gap: 0.5rem;">
               <button class="btn btn-primary" onclick="saveGasUrl()">Simpan URL</button>
               <button class="btn btn-light" onclick="testGasConnection()">Tes Koneksi</button>
             </div>
+          </div>
+
+          <!-- Change PIN Card -->
+          <div class="form-card" style="max-width: 100%; margin-bottom: 0; flex: 1;">
+            <div class="form-header">
+              <h3 class="form-title">🔑 Ubah PIN Admin</h3>
+              <p class="form-subtitle">Ganti PIN keamanan administrator.</p>
+            </div>
+            <form onsubmit="handleUpdateAdminPin(event)">
+              <div class="form-group" style="margin-bottom: 0.75rem;">
+                <input type="password" id="pin-current" class="form-control" placeholder="PIN Lama" required>
+              </div>
+              <div class="form-group" style="margin-bottom: 0.75rem;">
+                <input type="password" id="pin-new" class="form-control" placeholder="PIN Baru" required>
+              </div>
+              <button type="submit" class="btn btn-secondary" style="width: 100%;">
+                💾 Update PIN Admin
+              </button>
+            </form>
           </div>
         </div>
 
