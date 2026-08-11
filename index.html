@@ -418,9 +418,10 @@
               <h3 class="form-title">📋 Master Data Alumni & Status Tracer</h3>
               <p class="form-subtitle">Daftar lulusan beserta status survey tracer study terkini.</p>
             </div>
-            <div style="display: flex; gap: 0.5rem;">
-              <input type="text" id="table-search" class="form-control" placeholder="Cari nama / NISN..." oninput="filterAlumniTable()" style="width: 200px;">
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <input type="text" id="table-search" class="form-control" placeholder="Cari nama / NISN..." oninput="filterAlumniTable()" style="width: 180px;">
               <button class="btn btn-light" onclick="exportAlumniCSV()">📊 Export CSV</button>
+              <button class="btn btn-danger" onclick="confirmClearAllData()" style="padding: 0.5rem 1rem; font-size: 0.85rem;">🗑️ Hapus Semua Data Dummy</button>
             </div>
           </div>
 
@@ -435,6 +436,7 @@
                   <th>Thn Lulus</th>
                   <th>No. HP</th>
                   <th>Status Tracer</th>
+                  <th style="text-align: center;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="alumni-table-body">
