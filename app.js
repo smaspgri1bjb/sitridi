@@ -814,6 +814,11 @@ async function renderAdminAlumniTable() {
     latestTracerMap[t.id_alumni] = t.status_tracer;
   });
 
+  if (alumniList.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">Belum ada data alumni. Silakan impor file CSV atau tambahkan data.</td></tr>`;
+    return;
+  }
+
   tbody.innerHTML = alumniList.map((item, index) => {
     const st = latestTracerMap[item.id_alumni] || "Belum Mengisi";
     return `
@@ -825,9 +830,74 @@ async function renderAdminAlumniTable() {
         <td>${item.tahun_lulus}</td>
         <td>${item.hp || '-'}</td>
         <td><span class="badge badge-${getBadgeClass(st)}">${st}</span></td>
+        <td style="text-align: center;">
+          <button class="btn btn-danger" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="deleteSingleAlumni('${item.id_alumni}', '${item.nama}')" title="Hapus Data Alumni Ini">
+            🗑️ Hapus
+          </button>
+        </td>
       </tr>
     `;
   }).join('');
+}
+
+// --- DELETE SINGLE ALUMNI ACTION ---
+async function deleteSingleAlumni(id_alumni, nama) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus data alumni "${nama}"?`)) return;
+
+  // 1. Delete from local database
+  localDatabase.alumni = localDatabase.alumni.filter(a => a.id_alumni !== id_alumni);
+  localDatabase.tracer = localDatabase.tracer.filter(t => t.id_alumni !== id_alumni);
+  localDatabase.pekerjaan = localDatabase.pekerjaan.filter(p => p.id_alumni !== id_alumni);
+  localDatabase.kuliah = localDatabase.kuliah.filter(k => k.id_alumni !== id_alumni);
+
+  showToast(`🗑️ Data alumni "${nama}" telah dihapus`, "info");
+
+  // 2. Send delete request to GAS if URL configured
+  const gasUrl = getGasUrl();
+  if (gasUrl) {
+    try {
+      await fetch(gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "deleteAlumni", id_alumni: id_alumni })
+      });
+    } catch (e) {
+      console.warn("GAS Delete failed", e);
+    }
+  }
+
+  renderAdminAlumniTable();
+  renderAnalytics();
+}
+
+// --- CLEAR ALL DUMMY DATA ACTION ---
+async function confirmClearAllData() {
+  if (!confirm("⚠️ PERINGATAN: Apakah Anda yakin ingin menghapus SELURUH data dummy/alumni? Tindakan ini tidak dapat dibatalkan!")) return;
+
+  // 1. Reset local database
+  localDatabase.alumni = [];
+  localDatabase.tracer = [];
+  localDatabase.pekerjaan = [];
+  localDatabase.kuliah = [];
+
+  showToast("🗑️ Seluruh data alumni & tracer berhasil dibersihkan!", "success");
+
+  // 2. Send clearAllData request to GAS if URL configured
+  const gasUrl = getGasUrl();
+  if (gasUrl) {
+    try {
+      await fetch(gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "clearAllData" })
+      });
+    } catch (e) {
+      console.warn("GAS Clear all failed", e);
+    }
+  }
+
+  renderAdminAlumniTable();
+  renderAnalytics();
 }
 
 function filterAlumniTable() {
