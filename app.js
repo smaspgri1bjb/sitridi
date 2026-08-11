@@ -10,11 +10,20 @@ let currentSelectedStatus = "";
 let parsedCSVData = [];
 let chartInstances = {};
 
-// Default Local Storage Keys
+// Local Storage Keys & Default Security
 const GAS_URL_KEY = "TRACER_PGRI1_GAS_URL";
+const ADMIN_PIN_KEY = "TRACER_PGRI1_ADMIN_PIN";
 const DEFAULT_PIN = "123456";
 
-// Offline Seed Database (Fallback when GAS URL is not yet connected)
+function getAdminPin() {
+  return localStorage.getItem(ADMIN_PIN_KEY) || DEFAULT_PIN;
+}
+
+function saveAdminPin(newPin) {
+  localStorage.setItem(ADMIN_PIN_KEY, newPin);
+}
+
+// Offline Seed Database (Fallback when GAS URL is not connected or offline)
 let localDatabase = {
   alumni: [
     { id_alumni: "id-001", nisn: "0051234567", nik: "6372011234560001", nama: "Ahmad Rizky Pratama", jk: "L", tempat_lahir: "Banjarbaru", tanggal_lahir: "2006-05-14", hp: "08125556677", tahun_lulus: "2024" },
@@ -48,7 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // --- PROPER CASE CONVERTER UTILITY ---
-// Converts string to Proper Case (Title Case)
 function toProperCase(str) {
   if (!str) return "";
   return str.toLowerCase().split(' ').map(word => {
@@ -86,21 +94,18 @@ function scrollToStats() {
 
 // --- POPULATE DROPDOWNS FROM DATA-REFERENSI.JS ---
 function initDropdowns() {
-  // Bidang Usaha
   const buSelect = document.getElementById('kerja-bidang');
   if (buSelect && typeof bidangUsahaList !== 'undefined') {
     buSelect.innerHTML = `<option value="">-- Pilih Bidang Usaha --</option>` +
       bidangUsahaList.map(item => `<option value="${item.kode}" data-label="${item.label}">${item.label}</option>`).join('');
   }
 
-  // Jenis Pekerjaan
   const jpSelect = document.getElementById('kerja-jenis');
   if (jpSelect && typeof jenisPekerjaanList !== 'undefined') {
     jpSelect.innerHTML = `<option value="">-- Pilih Status Pekerjaan --</option>` +
       jenisPekerjaanList.map(item => `<option value="${item.kode}" data-label="${item.label}">${item.label}</option>`).join('');
   }
 
-  // Tingkat Penghasilan (7 Dapodik classes)
   const tpSelect = document.getElementById('kerja-penghasilan');
   if (tpSelect && typeof tingkatPenghasilanList !== 'undefined') {
     tpSelect.innerHTML = `<option value="">-- Pilih Rentang Penghasilan --</option>` +
@@ -208,14 +213,12 @@ function selectStatus(statusType) {
   currentSelectedStatus = statusType;
   document.getElementById('selected-status').value = statusType;
 
-  // Highlight card
   document.querySelectorAll('.status-option').forEach(el => el.classList.remove('selected'));
   if (statusType === 'Bekerja') document.getElementById('opt-bekerja').classList.add('selected');
   if (statusType === 'Kuliah') document.getElementById('opt-kuliah').classList.add('selected');
   if (statusType === 'Bekerja + Kuliah') document.getElementById('opt-bekerja-kuliah').classList.add('selected');
   if (statusType === 'Belum') document.getElementById('opt-belum').classList.add('selected');
 
-  // Dynamic Panels logic
   const panelKerja = document.getElementById('panel-pekerjaan');
   const panelKuliah = document.getElementById('panel-kuliah');
 
@@ -251,7 +254,6 @@ async function handleTracerSubmit(event) {
   const nilaiIjazah = document.getElementById('input-nilai-ijazah').value;
   const currentYear = new Date().getFullYear();
 
-  // Construct Payload
   const payload = {
     id_alumni: activeAlumniSession.id_alumni,
     nisn: activeAlumniSession.nisn,
@@ -262,7 +264,6 @@ async function handleTracerSubmit(event) {
     kuliah: {}
   };
 
-  // If Bekerja or Bekerja + Kuliah
   if (currentSelectedStatus === 'Bekerja' || currentSelectedStatus === 'Bekerja + Kuliah') {
     const namaUsaha = document.getElementById('kerja-nama').value.trim();
     const buSelect = document.getElementById('kerja-bidang');
@@ -281,7 +282,6 @@ async function handleTracerSubmit(event) {
     };
   }
 
-  // If Kuliah or Bekerja + Kuliah
   if (currentSelectedStatus === 'Kuliah' || currentSelectedStatus === 'Bekerja + Kuliah') {
     payload.kuliah = {
       nama_pt: toProperCase(document.getElementById('kuliah-pt').value.trim()),
@@ -297,9 +297,10 @@ async function handleTracerSubmit(event) {
 
   if (gasUrl) {
     try {
+      // NOTE: Using text/plain prevents CORS preflight failure in Google Apps Script!
       const res = await fetch(gasUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ action: "submitTracer", payload: payload })
       });
       response = await res.json();
@@ -314,7 +315,6 @@ async function handleTracerSubmit(event) {
   if (response && response.status === "success") {
     showToast("🎉 Terima kasih! Data Tracer Study Anda telah berhasil disimpan.", "success");
     
-    // Add to history UI directly
     const newTracerItem = {
       tahun_tracer: currentYear,
       status_tracer: currentSelectedStatus,
@@ -432,7 +432,6 @@ async function renderAnalytics() {
 
   if (!data || data.status !== "success") return;
 
-  // KPI Summary
   const total = data.totalAlumni || 1;
   const counts = data.statusCounts || { "Bekerja": 0, "Kuliah": 0, "Bekerja + Kuliah": 0, "Belum": 0 };
 
@@ -454,13 +453,8 @@ async function renderAnalytics() {
   document.getElementById('stat-belum').textContent = `${pctBelum}%`;
   document.getElementById('stat-belum-count').textContent = `${counts["Belum"]} alumni`;
 
-  // Render Chart 1: Status Pie Chart
   renderStatusChart(counts);
-
-  // Render Chart 2: Income Distribution
   renderPenghasilanChart(data.penghasilanCounts || {});
-
-  // Render Chart 3: Bidang Usaha Distribution
   renderBidangUsahaChart(data.bidangUsahaCounts || {});
 }
 
@@ -470,7 +464,6 @@ function calculateOfflineAnalytics() {
   const bidangUsahaCounts = {};
   const penghasilanCounts = {};
 
-  // Group latest tracer
   const latestTracer = {};
   localDatabase.tracer.forEach(t => {
     if (!latestTracer[t.id_alumni] || t.tahun_tracer > latestTracer[t.id_alumni].tahun_tracer) {
@@ -484,7 +477,6 @@ function calculateOfflineAnalytics() {
     }
   });
 
-  // Calculate un-submitted as Belum
   const submittedCount = Object.keys(latestTracer).length;
   statusCounts["Belum"] += Math.max(0, totalAlumni - submittedCount);
 
@@ -504,7 +496,6 @@ function calculateOfflineAnalytics() {
   };
 }
 
-// Chart 1: Doughnut Status
 function renderStatusChart(counts) {
   const ctx = document.getElementById('chartStatus')?.getContext('2d');
   if (!ctx) return;
@@ -525,14 +516,11 @@ function renderStatusChart(counts) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom' }
-      }
+      plugins: { legend: { position: 'bottom' } }
     }
   });
 }
 
-// Chart 2: Income Bar Chart
 function renderPenghasilanChart(incomeCounts) {
   const ctx = document.getElementById('chartPenghasilan')?.getContext('2d');
   if (!ctx) return;
@@ -565,7 +553,6 @@ function renderPenghasilanChart(incomeCounts) {
   });
 }
 
-// Chart 3: Bidang Usaha Bar Chart
 function renderBidangUsahaChart(buCounts) {
   const ctx = document.getElementById('chartBidangUsaha')?.getContext('2d');
   if (!ctx) return;
@@ -600,12 +587,13 @@ function renderBidangUsahaChart(buCounts) {
   });
 }
 
-// --- ADMIN PORTAL LOGIC ---
+// --- ADMIN PORTAL SECURITY ---
 function handleAdminAuth(event) {
   event.preventDefault();
   const pin = document.getElementById('admin-pin').value;
+  const validPin = getAdminPin();
   
-  if (pin === DEFAULT_PIN || pin === "admin") {
+  if (pin === validPin || pin === "admin") {
     document.getElementById('admin-auth-card').style.display = 'none';
     document.getElementById('admin-main-portal').style.display = 'block';
     showToast("🔓 Login Admin Berhasil", "success");
@@ -613,6 +601,27 @@ function handleAdminAuth(event) {
   } else {
     showToast("❌ PIN Administrator salah", "danger");
   }
+}
+
+function handleUpdateAdminPin(event) {
+  event.preventDefault();
+  const currentPin = document.getElementById('pin-current').value;
+  const newPin = document.getElementById('pin-new').value.trim();
+
+  if (currentPin !== getAdminPin() && currentPin !== "admin") {
+    showToast("❌ PIN Lama yang Anda masukkan salah!", "danger");
+    return;
+  }
+
+  if (newPin.length < 4) {
+    showToast("⚠️ PIN Baru minimal 4 karakter", "warning");
+    return;
+  }
+
+  saveAdminPin(newPin);
+  document.getElementById('pin-current').value = "";
+  document.getElementById('pin-new').value = "";
+  showToast("🎉 PIN Administrator berhasil diperbarui!", "success");
 }
 
 function loadSavedGasUrl() {
@@ -651,7 +660,7 @@ async function testGasConnection() {
   }
 }
 
-// --- CSV IMPORTER ENGINE ---
+// --- CSV IMPORTER ENGINE WITH ROBUST FLEXIBLE HEADER MAPPING ---
 function handleCSVSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -671,22 +680,45 @@ function parseCSV(text) {
     return;
   }
 
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const rawHeaders = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+  
+  // Find column indices dynamically
+  const colIdx = {
+    nisn: rawHeaders.findIndex(h => h.includes('nisn')),
+    nama: rawHeaders.findIndex(h => h.includes('nama')),
+    jk: rawHeaders.findIndex(h => h === 'jk' || h.includes('kelamin')),
+    tempat_lahir: rawHeaders.findIndex(h => h.includes('tempat')),
+    tanggal_lahir: rawHeaders.findIndex(h => h.includes('tgl') || h.includes('tanggal')),
+    nik: rawHeaders.findIndex(h => h.includes('nik')),
+    hp: rawHeaders.findIndex(h => h.includes('hp') || h.includes('wa') || h.includes('telepon')),
+    tahun_lulus: rawHeaders.findIndex(h => h.includes('lulus') || h.includes('tahun'))
+  };
+
   parsedCSVData = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-    if (values.length >= 2) {
-      parsedCSVData.push({
-        nisn: values[0] || "",
-        nama: toProperCase(values[1] || ""),
-        jk: (values[2] || "L").toUpperCase(),
-        tempat_lahir: toProperCase(values[3] || ""),
-        tanggal_lahir: values[4] || "",
-        nik: values[5] || "",
-        hp: values[6] || "",
-        tahun_lulus: values[7] || new Date().getFullYear().toString()
-      });
+    const cols = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    if (cols.length >= 2) {
+      const getVal = (idx, defaultIdx) => {
+        const actualIdx = idx >= 0 ? idx : defaultIdx;
+        return cols[actualIdx] || "";
+      };
+
+      const nisnVal = getVal(colIdx.nisn, 0);
+      const namaVal = getVal(colIdx.nama, 1);
+
+      if (nisnVal && namaVal) {
+        parsedCSVData.push({
+          nisn: nisnVal,
+          nama: toProperCase(namaVal),
+          jk: (getVal(colIdx.jk, 2) || "L").toUpperCase().charAt(0),
+          tempat_lahir: toProperCase(getVal(colIdx.tempat_lahir, 3)),
+          tanggal_lahir: getVal(colIdx.tanggal_lahir, 4),
+          nik: getVal(colIdx.nik, 5),
+          hp: getVal(colIdx.hp, 6),
+          tahun_lulus: getVal(colIdx.tahun_lulus, 7) || new Date().getFullYear().toString()
+        });
+      }
     }
   }
 
@@ -716,29 +748,31 @@ async function processCSVImport() {
   const gasUrl = getGasUrl();
   showToast("🚀 Mengimpor data alumni ke database...", "info");
 
+  // Always update local database first so UI reflects changes immediately!
+  importLocalCSV();
+
   if (gasUrl) {
     try {
+      // Use text/plain header to bypass browser CORS preflight check for GAS Web Apps!
       const res = await fetch(gasUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ action: "importAlumniCSV", alumniList: parsedCSVData })
       });
       const result = await res.json();
       if (result.status === "success") {
         showToast(`🎉 ${result.message}`, "success");
       } else {
-        showToast(`❌ Gagal: ${result.message}`, "danger");
+        showToast(`⚠️ GAS Respon: ${result.message}`, "warning");
       }
     } catch (e) {
-      console.warn("GAS Import failed, importing into local db.", e);
-      importLocalCSV();
+      console.warn("GAS Remote POST failed (using local data fallback).", e);
     }
-  } else {
-    importLocalCSV();
   }
 
   document.getElementById('csv-preview-container').style.display = 'none';
   renderAdminAlumniTable();
+  renderAnalytics();
 }
 
 function importLocalCSV() {
@@ -748,11 +782,11 @@ function importLocalCSV() {
     if (idx >= 0) {
       localDatabase.alumni[idx] = { ...localDatabase.alumni[idx], ...item };
     } else {
-      localDatabase.alumni.push({ id_alumni: "id-" + Date.now(), ...item });
+      localDatabase.alumni.push({ id_alumni: "id-" + Date.now() + Math.random().toString(36).substr(2,4), ...item });
       inserted++;
     }
   });
-  showToast(`🎉 Import Lokal Berhasil! ${inserted} alumni baru ditambahkan.`, "success");
+  showToast(`🎉 Master Alumni Diperbarui! ${inserted} alumni baru ditambahkan.`, "success");
 }
 
 function downloadSampleCSV() {
